@@ -46,22 +46,38 @@ def main():
     
     tweets = {}
     
+    timer = 1 * 60
     
-    # On scrape nos tweets avec snscrape et les envoies dans notre topic kafka
-    for tweet in sntwitter.TwitterSearchScraper(query).get_items():
-        
-        # on ajoute les données de chaque tweet dans un dictionnaire  
-        tweets = {'id': tweet.id, 'user':tweet.user.username, 'tweet_date':str(tweet.date),'tweet': tweet.content, 'location':tweet.user.location, 'lang' : tweet.lang}
-        
-        m = json.dumps(tweets,ensure_ascii=False).encode('utf-8') # on serialise en Json
+    verif_id = []
     
-        producer.poll(1)
-        producer.produce('tweets-analysis',m,callback=receipt) # on envoie nos tweets dans le Topic Kafka 'tweets-analysis'
+    while True:
         
-        # Attendre que tous les messages soient envoyés
-        producer.flush()   
+        time.sleep(2)
         
-        time.sleep(2) # intervalle entre chaque envoie
+        start_time = time.time()
+        
+        # On scrape nos tweets avec snscrape et les envoies dans notre topic kafka
+        for tweet in sntwitter.TwitterSearchScraper(query).get_items():
+            
+            print("\n")
+            if ((time.time() - start_time) < timer):
+                if(tweet.id not in verif_id):
+                    verif_id.append(tweet.id)  
+                    # on ajoute les données de chaque tweet dans un dictionnaire
+                    tweets = {'id': tweet.id, 'user':tweet.user.username, 'tweet_date':str(tweet.date),'tweet': tweet.content, 'location':tweet.user.location, 'lang' : tweet.lang}
+                    
+                    m = json.dumps(tweets,ensure_ascii=False).encode('utf-8') # on serialise en Json
+                
+                    producer.poll(1)
+                    producer.produce('tweets-analysis',m,callback=receipt) # on envoie nos tweets dans le Topic Kafka 'tweets-analysis'
+                    
+                    # Attendre que tous les messages soient envoyés
+                    producer.flush()   
+                    
+                    time.sleep(1) # intervalle entre chaque envoie
+            else:
+                print(f"Délai de {timer/60} minutes dépassé, relance du producer ...")
+                break
               
       
 if __name__ == '__main__':
