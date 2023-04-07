@@ -40,7 +40,7 @@ print('Kafka Producer has been initiated...')
 
 
 # votre requête de recherche twitter ici les tweets anglais sur la coupe du monde
-query = "Lakers NBA lang:en" 
+query = "Microsoft lang:en" 
 
 def main():
     
@@ -52,7 +52,11 @@ def main():
     
     while True:
         
+<<<<<<< HEAD
+        # time.sleep(2)
+=======
         time.sleep(2)
+>>>>>>> 03b91adf19357241587207a0eeb3b0d4161172d6
         
         start_time = time.time()
         
@@ -74,10 +78,21 @@ def main():
                     # Attendre que tous les messages soient envoyés
                     producer.flush()   
                     
+<<<<<<< HEAD
+                    # time.sleep(1) # intervalle entre chaque envoie
+                else :
+                    print("=============================== already known")
+                    break
+            else:
+                print(f"Délai de {timer/60} minutes dépassé, relance du producer ...")
+                break
+                
+=======
                     time.sleep(1) # intervalle entre chaque envoie
             else:
                 print(f"Délai de {timer/60} minutes dépassé, relance du producer ...")
                 break
+>>>>>>> 03b91adf19357241587207a0eeb3b0d4161172d6
               
       
 if __name__ == '__main__':
