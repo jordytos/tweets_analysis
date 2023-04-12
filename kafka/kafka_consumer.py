@@ -8,11 +8,59 @@ import datetime
 
 # =========== CASSANDRA =================
 
-# cluster = Cluster(['cassandra'])
-# session = cluster.connect('cassandra01')
-# keyspace_name = 'tweets'
-# session.execute(f"CREATE KEYSPACE IF NOT EXISTS {keyspace_name} WITH replication = {{'class': 'SimpleStrategy', 'replication_factor': '3'}}")
-# session.set_keyspace(keyspace_name)
+cluster = Cluster(['127.0.0.1','172.18.0.4'])
+session = cluster.connect('')
+keyspace_name = 'tweets'
+
+#Création de notre keyspace (s'il n'existe pas)
+session.execute(f"CREATE KEYSPACE IF NOT EXISTS {keyspace_name} WITH replication = {{'class': 'SimpleStrategy', 'replication_factor': '3'}}")
+session.set_keyspace(keyspace_name)
+
+#Création de nos tables (s'ils n'existent pas)
+
+# TWEETS RAW
+session.execute("""
+    CREATE TABLE IF NOT EXISTS tweets_raw (
+        id BIGINT PRIMARY KEY,
+        user TEXT,
+        tweet_date TIMESTAMP,
+        tweet TEXT,
+        location TEXT,
+        lang TEXT
+    )
+""")
+
+# TWEETS PREPRO
+session.execute("""
+    CREATE TABLE IF NOT EXISTS tweets_preproced (
+        id BIGINT PRIMARY KEY,
+        user TEXT,
+        tweet_date TIMESTAMP,
+        tweet TEXT,
+        clean_tweet TEXT,
+        polarity FLOAT,
+        subjectivity FLOAT,
+        sentiment TEXT
+    )
+""")
+
+
+# INDEX ON SENTIMENT
+session.execute("""
+    CREATE INDEX IF NOT EXISTS tweets_sentiments ON tweets.tweets_preproced (sentiment)
+""")
+
+
+# TWEETS METRICS
+session.execute("""
+    CREATE TABLE IF NOT EXISTS tweets_metrics (
+        id UUID PRIMARY KEY,
+        production_model_rfc_log_loss TEXT,
+        production_model_rfc_f1_score TEXT,
+        production_model_rfc_accuracy_score TEXT,
+        production_model_rfc_run INT
+    )
+""")
 
 #========================================
 
@@ -21,7 +69,7 @@ import datetime
 #============== KAFKA ===================
 
 # configuration de notre consumer kafka 
-consumer = Consumer({'bootstrap.servers':"localhost:9092",'group.id':'tweets-consumer',
+consumer = Consumer({'bootstrap.servers':'localhost:9092localhost:9093,localhost:9094','group.id':'tweets-consumer',
                      'auto.offset.reset':'earliest'})
 
 print('Available topics to consume: ', consumer.list_topics().topics)
@@ -94,8 +142,28 @@ def main():
             tweet_json = json.loads(tweet_data)
             my_tweet = Tweet(tweetID = str(tweet_json['id']), tweetText = str(tweet_json['tweet']))
         
+        
             # On ajoute chaque données dans Cassandra
-            #session.execute(f"INSERT INTO tweets (id, user, tweet_date, tweet, tweet_prepocess) VALUES ('{tweet_data['id']}', '{tweet_data['user']}', '{tweet_data['tweet_date']}', '{tweet_data['tweet']}', '{tweet_data['tweet_prepocess']}')")
+        
+            # INSERT TWEET RAW
+            session.execute(
+                """
+                INSERT INTO tweets_raw (id, user, tweet_date, tweet, location, lang)
+                VALUES (%s, %s, %s, %s, %s, %s)
+                """,
+                (tweet_json['id'], tweet_json['user'], tweet_json['tweet_date'], tweet_json['tweet'], tweet_json['location'], tweet_json['lang'])
+            )
+            
+            
+            # INSERT TWEET PREPROCED
+            session.execute(
+                """
+                INSERT INTO tweets_preproced (id, user, tweet_date, tweet, clean_tweet, polarity, subjectivity, sentiment)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                """,
+                (int(my_tweet.id), tweet_json['user'], tweet_json['tweet_date'], my_tweet.text, my_tweet.cleanText, my_tweet.polarity, my_tweet.subjectivity, my_tweet.sentiment)
+            )
+            
             print(" - === - ")
             
             if my_tweet.sentiment == "positive":
@@ -125,9 +193,9 @@ def main():
 
 
         
-    #consumer.close()
-    #cluster.shutdown()
-    #session.shutdown()
+    # consumer.close()
+    # cluster.shutdown()
+    # session.shutdown()
         
 if __name__ == '__main__':
     main()
